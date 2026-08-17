@@ -5,41 +5,36 @@ import { apiFetch, getCurrentUser } from "../api";
 function AdminProducts() {
   const user = getCurrentUser();
 
-  const [products, setProducts] =
-    useState([]);
+  const [products, setProducts] = useState([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [message, setMessage] =
-    useState("");
+  const [message, setMessage] = useState("");
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
 
-  const [editingId, setEditingId] =
-    useState(null);
+  const [editingId, setEditingId] = useState(null);
 
   const [form, setForm] = useState({
     name: "",
     description: "",
     price: "",
     stock: "",
+    popularity: "0",
     category: "",
-    image_url: "",
+    images: "",
   });
 
   useEffect(() => {
     if (user?.role === "admin") {
       loadProducts();
+    } else {
+      setLoading(false);
     }
   }, []);
 
   function handleChange(event) {
-    const {
-      name,
-      value,
-    } = event.target;
+    const { name, value } = event.target;
 
     setForm((current) => ({
       ...current,
@@ -49,27 +44,23 @@ function AdminProducts() {
 
   async function loadProducts() {
     setLoading(true);
+    setError("");
 
     try {
-      const response =
-        await apiFetch("/products");
+      const response = await apiFetch("/products");
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
         setError(
-          data.detail ||
-            "Failed to load products"
+          data.detail || "Failed to load products"
         );
         return;
       }
 
       setProducts(data);
     } catch {
-      setError(
-        "Cannot connect to backend"
-      );
+      setError("Cannot connect to backend");
     } finally {
       setLoading(false);
     }
@@ -81,8 +72,9 @@ function AdminProducts() {
       description: "",
       price: "",
       stock: "",
+      popularity: "0",
       category: "",
-      image_url: "",
+      images: "",
     });
 
     setEditingId(null);
@@ -93,15 +85,16 @@ function AdminProducts() {
 
     setForm({
       name: product.name || "",
-      description:
-        product.description || "",
-      price: product.price || "",
-      stock: product.stock || "",
-      category:
-        product.category || "",
-      image_url:
-        product.image_url || "",
+      description: product.description || "",
+      price: product.price ?? "",
+      stock: product.stock ?? "",
+      popularity: product.popularity ?? "0",
+      category: product.category || "",
+      images: product.images || "",
     });
+
+    setMessage("");
+    setError("");
 
     window.scrollTo({
       top: 0,
@@ -116,12 +109,13 @@ function AdminProducts() {
     setError("");
 
     const body = {
-      name: form.name,
-      description: form.description,
+      name: form.name.trim(),
+      description: form.description.trim() || null,
       price: Number(form.price),
       stock: Number(form.stock),
-      category: form.category,
-      image_url: form.image_url,
+      popularity: Number(form.popularity),
+      category: form.category.trim(),
+      images: form.images.trim() || null,
     };
 
     try {
@@ -129,27 +123,21 @@ function AdminProducts() {
         ? `/products/${editingId}`
         : "/products";
 
-      const method = editingId
-        ? "PUT"
-        : "POST";
+      const method = editingId ? "PUT" : "POST";
 
-      const response =
-        await apiFetch(endpoint, {
-          method,
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify(body),
-        });
+      const response = await apiFetch(endpoint, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
         setError(
-          data.detail ||
-            "Failed to save product"
+          data.detail || "Failed to save product"
         );
         return;
       }
@@ -161,43 +149,51 @@ function AdminProducts() {
       );
 
       resetForm();
+
       await loadProducts();
     } catch {
-      setError(
-        "Cannot connect to backend"
-      );
+      setError("Cannot connect to backend");
     }
   }
 
-  async function deleteProduct(
-    productId
-  ) {
-    const confirmed =
-      window.confirm(
-        "Delete this product?"
-      );
+  async function deleteProduct(productId) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this product?"
+    );
 
     if (!confirmed) {
       return;
     }
 
+    setMessage("");
+    setError("");
+
     try {
-      const response =
-        await apiFetch(
-          `/products/${productId}`,
-          {
-            method: "DELETE",
-          }
-        );
+      const response = await apiFetch(
+        `/products/${productId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
-      const data =
-        await response.json();
-
+      /*
+       * DELETE endpoint returns 204 No Content.
+       * Therefore, DO NOT call response.json().
+       */
       if (!response.ok) {
+        let data = {};
+
+        try {
+          data = await response.json();
+        } catch {
+          // No response body
+        }
+
         setError(
           data.detail ||
             "Failed to delete product"
         );
+
         return;
       }
 
@@ -207,9 +203,7 @@ function AdminProducts() {
 
       await loadProducts();
     } catch {
-      setError(
-        "Cannot connect to backend"
-      );
+      setError("Cannot connect to backend");
     }
   }
 
@@ -220,9 +214,7 @@ function AdminProducts() {
 
         <main className="container">
           <div className="empty">
-            <h2>
-              Access denied
-            </h2>
+            <h2>Access denied</h2>
 
             <p>
               Administrator access is required.
@@ -239,9 +231,7 @@ function AdminProducts() {
 
       <main className="container">
         <div className="hero">
-          <h1>
-            Product Management
-          </h1>
+          <h1>Product Management</h1>
 
           <p>
             Create, edit and delete products.
@@ -272,13 +262,14 @@ function AdminProducts() {
 
           <div className="form-group">
             <label>
-              Name
+              Product Name
             </label>
 
             <input
               name="name"
               value={form.name}
               onChange={handleChange}
+              placeholder="Enter product name"
               required
             />
           </div>
@@ -292,6 +283,7 @@ function AdminProducts() {
               name="description"
               value={form.description}
               onChange={handleChange}
+              placeholder="Enter product description"
             />
           </div>
 
@@ -303,10 +295,11 @@ function AdminProducts() {
             <input
               type="number"
               step="0.01"
-              min="0"
+              min="0.01"
               name="price"
               value={form.price}
               onChange={handleChange}
+              placeholder="Enter price"
               required
             />
           </div>
@@ -322,6 +315,23 @@ function AdminProducts() {
               name="stock"
               value={form.stock}
               onChange={handleChange}
+              placeholder="Enter stock quantity"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>
+              Popularity
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              name="popularity"
+              value={form.popularity}
+              onChange={handleChange}
+              placeholder="Enter popularity"
               required
             />
           </div>
@@ -335,6 +345,8 @@ function AdminProducts() {
               name="category"
               value={form.category}
               onChange={handleChange}
+              placeholder="Example: Electronics"
+              required
             />
           </div>
 
@@ -344,11 +356,37 @@ function AdminProducts() {
             </label>
 
             <input
-              name="image_url"
-              value={form.image_url}
+              type="url"
+              name="images"
+              value={form.images}
               onChange={handleChange}
+              placeholder="https://example.com/product.jpg"
             />
           </div>
+
+          {form.images && (
+            <div className="form-group">
+              <label>
+                Image Preview
+              </label>
+
+              <img
+                src={form.images}
+                alt="Product preview"
+                style={{
+                  width: "180px",
+                  height: "180px",
+                  objectFit: "cover",
+                  borderRadius: "10px",
+                  border: "1px solid #ddd",
+                }}
+                onError={(event) => {
+                  event.currentTarget.style.display =
+                    "none";
+                }}
+              />
+            </div>
+          )}
 
           <div className="admin-actions">
             <button
@@ -376,6 +414,16 @@ function AdminProducts() {
           <div className="loading">
             Loading products...
           </div>
+        ) : products.length === 0 ? (
+          <div className="empty">
+            <h3>
+              No products available
+            </h3>
+
+            <p>
+              Create your first product above.
+            </p>
+          </div>
         ) : (
           <div
             style={{
@@ -386,6 +434,10 @@ function AdminProducts() {
               <thead>
                 <tr>
                   <th>
+                    Image
+                  </th>
+
+                  <th>
                     Name
                   </th>
 
@@ -395,6 +447,10 @@ function AdminProducts() {
 
                   <th>
                     Stock
+                  </th>
+
+                  <th>
+                    Popularity
                   </th>
 
                   <th>
@@ -414,6 +470,37 @@ function AdminProducts() {
                       key={product.id}
                     >
                       <td>
+                        {product.images ? (
+                          <img
+                            src={
+                              product.images
+                            }
+                            alt={
+                              product.name
+                            }
+                            style={{
+                              width: "60px",
+                              height: "60px",
+                              objectFit:
+                                "cover",
+                              borderRadius:
+                                "8px",
+                            }}
+                            onError={(
+                              event
+                            ) => {
+                              event.currentTarget.style.display =
+                                "none";
+                            }}
+                          />
+                        ) : (
+                          <span>
+                            No Image
+                          </span>
+                        )}
+                      </td>
+
+                      <td>
                         {product.name}
                       </td>
 
@@ -426,6 +513,10 @@ function AdminProducts() {
                       </td>
 
                       <td>
+                        {product.popularity}
+                      </td>
+
+                      <td>
                         {product.category ||
                           "-"}
                       </td>
@@ -433,6 +524,7 @@ function AdminProducts() {
                       <td>
                         <div className="admin-actions">
                           <button
+                            type="button"
                             className="secondary-button"
                             onClick={() =>
                               editProduct(
@@ -444,6 +536,7 @@ function AdminProducts() {
                           </button>
 
                           <button
+                            type="button"
                             className="danger-button"
                             onClick={() =>
                               deleteProduct(

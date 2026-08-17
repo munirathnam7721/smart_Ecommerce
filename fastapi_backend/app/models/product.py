@@ -27,6 +27,12 @@ class Product(Base):
         nullable=True
     )
 
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True
+    )
+
     price: Mapped[float] = mapped_column(
         Numeric(12, 2),
         nullable=False
@@ -35,6 +41,12 @@ class Product(Base):
     stock: Mapped[int] = mapped_column(
         nullable=False,
         default=0
+    )
+
+    popularity: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        index=True
     )
 
     images: Mapped[str | None] = mapped_column(

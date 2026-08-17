@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
@@ -7,16 +9,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
-from app.api.deps import require_roles
 
 from app.db.session import get_db
 
 from app.models.cart import Cart
 from app.models.product import Product
+
 from app.models.user import UserRole
 
 from app.schemas.cart import (
     CartCreate,
+    CartItemResponse,
     CartResponse,
     CartUpdate,
 )
@@ -28,24 +31,105 @@ router = APIRouter(
 )
 
 
-# ============================================================
-# ADD PRODUCT TO CART
-# POST /cart
-# CUSTOMER / ADMIN
-# ============================================================
+TAX_RATE = Decimal("0.00")
 
-@router.post(
-    "",
-    response_model=CartResponse,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[
-        Depends(
-            require_roles(
-                UserRole.customer,
-                UserRole.admin
+
+def get_cart_item(
+    cart_id: int,
+    user_id: int,
+    db: Session
+):
+
+    item = db.scalar(
+        select(Cart).where(
+            Cart.id == cart_id,
+            Cart.user_id == user_id
+        )
+    )
+
+    if not item:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cart item not found"
+        )
+
+    return item
+
+
+def build_cart_response(
+    user_id: int,
+    db: Session
+):
+
+    items = db.scalars(
+        select(Cart).where(
+            Cart.user_id == user_id
+        )
+    ).all()
+
+    response_items = []
+
+    subtotal = Decimal("0.00")
+
+    for item in items:
+
+        product = db.get(
+            Product,
+            item.product_id
+        )
+
+        if not product:
+            continue
+
+        price = Decimal(
+            str(product.price)
+        )
+
+        item_total = (
+            price * item.quantity
+        )
+
+        subtotal += item_total
+
+        response_items.append(
+            CartItemResponse(
+                id=item.id,
+                user_id=item.user_id,
+                product_id=item.product_id,
+                product_name=product.name,
+                price=price,
+                quantity=item.quantity,
+                item_total=item_total
             )
         )
-    ]
+
+    tax = (
+        subtotal * TAX_RATE
+    ).quantize(
+        Decimal("0.01")
+    )
+
+    grand_total = (
+        subtotal + tax
+    ).quantize(
+        Decimal("0.01")
+    )
+
+    return CartResponse(
+        items=response_items,
+        subtotal=subtotal.quantize(
+            Decimal("0.01")
+        ),
+        tax=tax,
+        grand_total=grand_total
+    )
+
+
+@router.post(
+    "/add",
+    response_model=CartItemResponse,
+    status_code=status.HTTP_201_CREATED
 )
 def add_to_cart(
     payload: CartCreate,
@@ -109,66 +193,56 @@ def add_to_cart(
 
     db.refresh(item)
 
-    return item
+    price = Decimal(
+        str(product.price)
+    )
 
+    item_total = (
+        price * item.quantity
+    )
 
-# ============================================================
-# GET MY CART
-# GET /cart
-# CUSTOMER / ADMIN
-# ============================================================
+    return CartItemResponse(
+        id=item.id,
+        user_id=item.user_id,
+        product_id=item.product_id,
+        product_name=product.name,
+        price=price,
+        quantity=item.quantity,
+        item_total=item_total
+    )
+
 
 @router.get(
     "",
-    response_model=list[CartResponse]
-)
-def get_my_cart(
-    current_user: CurrentUser,
-    db: Session = Depends(get_db)
-):
-
-    return db.scalars(
-        select(Cart).where(
-            Cart.user_id == current_user.id
-        )
-    ).all()
-
-
-# ============================================================
-# UPDATE CART ITEM
-# PUT /cart/{cart_id}
-# CUSTOMER / ADMIN
-# ============================================================
-
-@router.put(
-    "/{cart_id}",
     response_model=CartResponse
 )
-def update_cart_item(
-    cart_id: int,
-    payload: CartUpdate,
+def get_cart(
     current_user: CurrentUser,
     db: Session = Depends(get_db)
 ):
 
-    item = db.get(
-        Cart,
-        cart_id
+    return build_cart_response(
+        current_user.id,
+        db
     )
 
-    if not item:
 
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cart item not found"
-        )
+@router.put(
+    "/update",
+    response_model=CartItemResponse
+)
+def update_cart(
+    payload: CartUpdate,
+    cart_id: int,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db)
+):
 
-    if item.user_id != current_user.id:
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to modify this cart item"
-        )
+    item = get_cart_item(
+        cart_id,
+        current_user.id,
+        db
+    )
 
     product = db.get(
         Product,
@@ -195,43 +269,40 @@ def update_cart_item(
 
     db.refresh(item)
 
-    return item
+    price = Decimal(
+        str(product.price)
+    )
 
+    item_total = (
+        price * item.quantity
+    )
 
-# ============================================================
-# DELETE CART ITEM
-# DELETE /cart/{cart_id}
-# CUSTOMER / ADMIN
-# ============================================================
+    return CartItemResponse(
+        id=item.id,
+        user_id=item.user_id,
+        product_id=item.product_id,
+        product_name=product.name,
+        price=price,
+        quantity=item.quantity,
+        item_total=item_total
+    )
+
 
 @router.delete(
-    "/{cart_id}",
+    "/remove",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_cart_item(
+def remove_from_cart(
     cart_id: int,
     current_user: CurrentUser,
     db: Session = Depends(get_db)
 ):
 
-    item = db.get(
-        Cart,
-        cart_id
+    item = get_cart_item(
+        cart_id,
+        current_user.id,
+        db
     )
-
-    if not item:
-
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cart item not found"
-        )
-
-    if item.user_id != current_user.id:
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to delete this cart item"
-        )
 
     db.delete(item)
 

@@ -1,8 +1,10 @@
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import status
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_roles
@@ -24,12 +26,6 @@ router = APIRouter(
 )
 
 
-# ============================================================
-# CREATE PRODUCT
-# POST /products
-# ADMIN ONLY
-# ============================================================
-
 @router.post(
     "",
     response_model=ProductResponse,
@@ -50,19 +46,11 @@ def create_product(
     )
 
     db.add(product)
-
     db.commit()
-
     db.refresh(product)
 
     return product
 
-
-# ============================================================
-# UPDATE PRODUCT
-# PUT /products/{product_id}
-# ADMIN ONLY
-# ============================================================
 
 @router.put(
     "/{product_id}",
@@ -83,7 +71,6 @@ def update_product(
     )
 
     if not product:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found"
@@ -94,7 +81,6 @@ def update_product(
     )
 
     for field, value in update_data.items():
-
         setattr(
             product,
             field,
@@ -102,17 +88,10 @@ def update_product(
         )
 
     db.commit()
-
     db.refresh(product)
 
     return product
 
-
-# ============================================================
-# DELETE PRODUCT
-# DELETE /products/{product_id}
-# ADMIN ONLY
-# ============================================================
 
 @router.delete(
     "/{product_id}",
@@ -134,41 +113,110 @@ def delete_product(
     )
 
     if not product:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found"
         )
 
     db.delete(product)
-
     db.commit()
 
     return None
 
 
-# ============================================================
-# GET ALL PRODUCTS
-# GET /products
-# PUBLIC
-# ============================================================
+@router.get(
+    "/category/{category}",
+    response_model=list[ProductResponse]
+)
+def products_by_category(
+    category: str,
+    db: Session = Depends(get_db)
+):
+
+    statement = (
+        select(Product)
+        .where(
+            Product.category == category
+        )
+    )
+
+    return db.scalars(statement).all()
+
 
 @router.get(
     "",
     response_model=list[ProductResponse]
 )
 def list_products(
+    category: str | None = Query(
+        default=None
+    ),
+    min_price: float | None = Query(
+        default=None,
+        ge=0
+    ),
+    max_price: float | None = Query(
+        default=None,
+        ge=0
+    ),
+    in_stock: bool | None = Query(
+        default=None
+    ),
+    sort: str | None = Query(
+        default=None
+    ),
     db: Session = Depends(get_db)
 ):
 
-    return db.query(Product).all()
+    statement = select(Product)
 
+    if category:
+        statement = statement.where(
+            Product.category == category
+        )
 
-# ============================================================
-# GET SINGLE PRODUCT
-# GET /products/{product_id}
-# PUBLIC
-# ============================================================
+    if min_price is not None:
+        statement = statement.where(
+            Product.price >= min_price
+        )
+
+    if max_price is not None:
+        statement = statement.where(
+            Product.price <= max_price
+        )
+
+    if in_stock is True:
+        statement = statement.where(
+            Product.stock > 0
+        )
+
+    elif in_stock is False:
+        statement = statement.where(
+            Product.stock == 0
+        )
+
+    if sort == "popularity":
+        statement = statement.order_by(
+            Product.popularity.desc()
+        )
+
+    elif sort == "price_asc":
+        statement = statement.order_by(
+            Product.price.asc()
+        )
+
+    elif sort == "price_desc":
+        statement = statement.order_by(
+            Product.price.desc()
+        )
+
+    elif sort == "name":
+        statement = statement.order_by(
+            Product.name.asc()
+        )
+
+    return db.scalars(statement).all()
+
 
 @router.get(
     "/{product_id}",
@@ -185,7 +233,6 @@ def get_product(
     )
 
     if not product:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found"

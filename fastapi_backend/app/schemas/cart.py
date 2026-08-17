@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic import BaseModel
 from pydantic import Field
 
@@ -20,7 +22,7 @@ class CartUpdate(BaseModel):
     )
 
 
-class CartResponse(BaseModel):
+class CartItemResponse(BaseModel):
 
     id: int
 
@@ -28,8 +30,21 @@ class CartResponse(BaseModel):
 
     product_id: int
 
+    product_name: str
+
+    price: Decimal
+
     quantity: int
 
-    model_config = {
-        "from_attributes": True
-    }
+    item_total: Decimal
+
+
+class CartResponse(BaseModel):
+
+    items: list[CartItemResponse]
+
+    subtotal: Decimal
+
+    tax: Decimal
+
+    grand_total: Decimal

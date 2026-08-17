@@ -20,8 +20,7 @@ class Cart(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        primary_key=True,
-        index=True
+        primary_key=True
     )
 
     user_id: Mapped[int] = mapped_column(
