@@ -1,6 +1,9 @@
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+)
 
 
 class Settings(BaseSettings):
@@ -22,11 +25,27 @@ class Settings(BaseSettings):
     auth0_domain: str
 
     auth0_audience: str
+
     auth0_client_id: str
+
     auth0_client_secret: str
 
     cors_origins: str = (
         "http://localhost:3000,http://localhost:5173"
+    )
+
+    # -----------------------------
+    # Stripe
+    # -----------------------------
+
+    stripe_secret_key: str
+
+    stripe_webhook_secret: str = ""
+
+    stripe_currency: str = "inr"
+
+    frontend_url: str = (
+        "http://localhost:5173"
     )
 
     model_config = SettingsConfigDict(
@@ -47,7 +66,9 @@ class Settings(BaseSettings):
     @property
     def auth0_issuer(self):
 
-        return f"https://{self.auth0_domain}/"
+        return (
+            f"https://{self.auth0_domain}/"
+        )
 
 
 @lru_cache

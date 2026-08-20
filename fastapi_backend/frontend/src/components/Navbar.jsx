@@ -7,6 +7,7 @@ function Navbar() {
 
   function handleLogout() {
     logout();
+    navigate("/");
   }
 
   return (
@@ -26,6 +27,10 @@ function Navbar() {
 
           <Link to="/cart">
             Cart
+          </Link>
+
+          <Link to="/orders">
+            Orders
           </Link>
 
           <Link to="/profile">

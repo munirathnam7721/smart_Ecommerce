@@ -44,16 +44,22 @@ function Products() {
     }
   }
 
+  // ---------------------------------------------------------
+  // ADD PRODUCT TO CART
+  // ---------------------------------------------------------
+
   async function addToCart(productId) {
     setMessage("");
     setError("");
 
     try {
-      const response = await apiFetch("/cart", {
+      const response = await apiFetch("/cart/add", {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json",
         },
+
         body: JSON.stringify({
           product_id: productId,
           quantity: 1,
@@ -63,16 +69,24 @@ function Products() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.detail || "Failed to add product to cart");
+        setError(
+          data.detail || "Failed to add product to cart"
+        );
         return;
       }
 
-      setMessage("Product added to cart successfully.");
+      setMessage(
+        "Product added to cart successfully."
+      );
     } catch (err) {
       console.error(err);
       setError("Cannot connect to backend");
     }
   }
+
+  // ---------------------------------------------------------
+  // CATEGORIES
+  // ---------------------------------------------------------
 
   const categories = useMemo(() => {
     const values = products
@@ -82,18 +96,10 @@ function Products() {
     return ["all", ...new Set(values)];
   }, [products]);
 
-  /*
-   * Supports:
-   *
-   * images: "https://example.com/image.jpg"
-   *
-   * OR
-   *
-   * images: [
-   *   "https://example.com/image1.jpg",
-   *   "https://example.com/image2.jpg"
-   * ]
-   */
+  // ---------------------------------------------------------
+  // PRODUCT IMAGE
+  // ---------------------------------------------------------
+
   function getProductImage(product) {
     if (!product || !product.images) {
       return null;
@@ -112,6 +118,10 @@ function Products() {
     return null;
   }
 
+  // ---------------------------------------------------------
+  // FILTER PRODUCTS
+  // ---------------------------------------------------------
+
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
@@ -129,7 +139,8 @@ function Products() {
     // Category filter
     if (category !== "all") {
       result = result.filter(
-        (product) => product.category === category
+        (product) =>
+          product.category === category
       );
     }
 
@@ -137,7 +148,8 @@ function Products() {
     if (minPrice !== "") {
       result = result.filter(
         (product) =>
-          Number(product.price || 0) >= Number(minPrice)
+          Number(product.price || 0) >=
+          Number(minPrice)
       );
     }
 
@@ -145,20 +157,24 @@ function Products() {
     if (maxPrice !== "") {
       result = result.filter(
         (product) =>
-          Number(product.price || 0) <= Number(maxPrice)
+          Number(product.price || 0) <=
+          Number(maxPrice)
       );
     }
 
     // Popularity filter
     if (popularity === "high") {
       result = result.filter(
-        (product) => Number(product.popularity || 0) >= 50
+        (product) =>
+          Number(product.popularity || 0) >= 50
       );
     }
 
     if (popularity === "medium") {
       result = result.filter((product) => {
-        const value = Number(product.popularity || 0);
+        const value = Number(
+          product.popularity || 0
+        );
 
         return value >= 20 && value < 50;
       });
@@ -166,20 +182,23 @@ function Products() {
 
     if (popularity === "low") {
       result = result.filter(
-        (product) => Number(product.popularity || 0) < 20
+        (product) =>
+          Number(product.popularity || 0) < 20
       );
     }
 
     // Stock filter
     if (stockFilter === "in_stock") {
       result = result.filter(
-        (product) => Number(product.stock || 0) > 0
+        (product) =>
+          Number(product.stock || 0) > 0
       );
     }
 
     if (stockFilter === "out_of_stock") {
       result = result.filter(
-        (product) => Number(product.stock || 0) <= 0
+        (product) =>
+          Number(product.stock || 0) <= 0
       );
     }
 
@@ -194,6 +213,10 @@ function Products() {
     stockFilter,
   ]);
 
+  // ---------------------------------------------------------
+  // CLEAR FILTERS
+  // ---------------------------------------------------------
+
   function clearFilters() {
     setSearch("");
     setCategory("all");
@@ -203,18 +226,26 @@ function Products() {
     setStockFilter("all");
   }
 
+  // ---------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------
+
   return (
     <div className="page">
+
       <Navbar />
 
       <main className="container">
+
         {/* Header */}
         <section className="hero">
+
           <h1>Products</h1>
 
           <p>
             Find the products you need.
           </p>
+
         </section>
 
         {/* Success message */}
@@ -233,6 +264,7 @@ function Products() {
 
         {/* Filters */}
         <div className="toolbar">
+
           {/* Search */}
           <input
             className="search-input"
@@ -341,30 +373,41 @@ function Products() {
           >
             Clear Filters
           </button>
+
         </div>
 
         {/* Product count */}
         {!loading && (
           <div className="product-count">
+
             Showing {filteredProducts.length} product
-            {filteredProducts.length !== 1 ? "s" : ""}
+            {filteredProducts.length !== 1
+              ? "s"
+              : ""}
+
           </div>
         )}
 
         {/* Loading */}
         {loading ? (
+
           <div className="loading">
             Loading products...
           </div>
+
         ) : filteredProducts.length === 0 ? (
+
           /* Empty */
+
           <div className="empty">
+
             <h3>
               No products found
             </h3>
 
             <p>
-              Try another search or change your filters.
+              Try another search or change your
+              filters.
             </p>
 
             <button
@@ -373,11 +416,17 @@ function Products() {
             >
               Clear Filters
             </button>
+
           </div>
+
         ) : (
+
           /* Products */
+
           <div className="product-grid">
+
             {filteredProducts.map((product) => {
+
               const imageUrl =
                 getProductImage(product);
 
@@ -395,13 +444,18 @@ function Products() {
                 );
 
               return (
+
                 <article
                   className="product-card"
                   key={product.id}
                 >
+
                   {/* Product Image */}
+
                   <div className="product-image-wrapper">
+
                     {imageUrl ? (
+
                       <img
                         className="product-image"
                         src={imageUrl}
@@ -410,6 +464,7 @@ function Products() {
                           "Product"
                         }
                         onError={(event) => {
+
                           event.currentTarget.style.display =
                             "none";
 
@@ -424,8 +479,10 @@ function Products() {
                             placeholder.style.display =
                               "flex";
                           }
+
                         }}
                       />
+
                     ) : null}
 
                     <div
@@ -438,10 +495,13 @@ function Products() {
                     >
                       No Image
                     </div>
+
                   </div>
 
-                  {/* Product content */}
+                  {/* Product Content */}
+
                   <div className="product-content">
+
                     <h3>
                       {product.name ||
                         "Unnamed Product"}
@@ -453,32 +513,47 @@ function Products() {
                     </p>
 
                     {/* Category */}
+
                     {product.category && (
+
                       <p className="product-category">
+
                         Category:{" "}
+
                         {product.category}
+
                       </p>
+
                     )}
 
                     {/* Price */}
+
                     <p className="price">
                       ₹{price.toFixed(2)}
                     </p>
 
                     {/* Popularity */}
+
                     <p className="popularity">
+
                       Popularity:{" "}
+
                       {productPopularity}
+
                     </p>
 
                     {/* Stock */}
+
                     <p className="stock">
+
                       {stock > 0
                         ? `${stock} available`
                         : "Out of stock"}
+
                     </p>
 
-                    {/* Add to cart */}
+                    {/* Add to Cart */}
+
                     <button
                       className="primary-button"
                       disabled={stock <= 0}
@@ -486,17 +561,26 @@ function Products() {
                         addToCart(product.id)
                       }
                     >
+
                       {stock > 0
                         ? "Add to Cart"
                         : "Out of Stock"}
+
                     </button>
+
                   </div>
+
                 </article>
+
               );
             })}
+
           </div>
+
         )}
+
       </main>
+
     </div>
   );
 }

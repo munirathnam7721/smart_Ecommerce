@@ -165,6 +165,10 @@ function Cart() {
     }
   }
 
+  function goToCheckout() {
+    window.location.href = "/checkout";
+  }
+
   const items =
     cart.items || [];
 
@@ -372,6 +376,13 @@ function Cart() {
                   cart.grand_total || 0
                 ).toFixed(2)}
               </p>
+
+              <button
+                className="primary-button"
+                onClick={goToCheckout}
+              >
+                Proceed to Checkout
+              </button>
 
             </aside>
 
