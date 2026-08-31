@@ -8,11 +8,23 @@ from pydantic_settings import (
 
 class Settings(BaseSettings):
 
+    # -----------------------------
+    # Application
+    # -----------------------------
+
     app_name: str = "Smart E-Commerce API"
 
     environment: str = "development"
 
+    # -----------------------------
+    # Database
+    # -----------------------------
+
     database_url: str
+
+    # -----------------------------
+    # JWT
+    # -----------------------------
 
     jwt_secret_key: str
 
@@ -22,6 +34,10 @@ class Settings(BaseSettings):
 
     refresh_token_expire_days: int = 7
 
+    # -----------------------------
+    # Auth0
+    # -----------------------------
+
     auth0_domain: str
 
     auth0_audience: str
@@ -30,8 +46,13 @@ class Settings(BaseSettings):
 
     auth0_client_secret: str
 
+    # -----------------------------
+    # CORS
+    # -----------------------------
+
     cors_origins: str = (
-        "http://localhost:3000,http://localhost:5173"
+        "http://localhost:3000,"
+        "http://localhost:5173"
     )
 
     # -----------------------------
@@ -48,11 +69,37 @@ class Settings(BaseSettings):
         "http://localhost:5173"
     )
 
+    # -----------------------------
+    # Email / SMTP
+    # -----------------------------
+
+    smtp_host: str = "smtp.gmail.com"
+
+    smtp_port: int = 587
+
+    smtp_username: str
+
+    smtp_password: str
+
+    smtp_from_email: str
+
+    smtp_from_name: str = (
+        "Smart E-Commerce"
+    )
+
+    # -----------------------------
+    # Pydantic Settings
+    # -----------------------------
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
         extra="ignore",
     )
+
+    # -----------------------------
+    # CORS helper
+    # -----------------------------
 
     @property
     def cors_origin_list(self):
@@ -62,6 +109,10 @@ class Settings(BaseSettings):
             for origin in self.cors_origins.split(",")
             if origin.strip()
         ]
+
+    # -----------------------------
+    # Auth0 issuer
+    # -----------------------------
 
     @property
     def auth0_issuer(self):

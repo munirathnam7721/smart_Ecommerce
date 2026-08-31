@@ -9,13 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
-
 from app.db.session import get_db
 
 from app.models.cart import Cart
 from app.models.product import Product
-
-from app.models.user import UserRole
 
 from app.schemas.cart import (
     CartCreate,
@@ -25,25 +22,37 @@ from app.schemas.cart import (
 )
 
 
+# ============================================================
+# ROUTER
+# ============================================================
+
 router = APIRouter(
     prefix="/cart",
-    tags=["Cart"]
+    tags=["Cart"],
 )
 
+
+# ============================================================
+# TAX
+# ============================================================
 
 TAX_RATE = Decimal("0.00")
 
 
+# ============================================================
+# GET CART ITEM
+# ============================================================
+
 def get_cart_item(
     cart_id: int,
     user_id: int,
-    db: Session
+    db: Session,
 ):
 
     item = db.scalar(
         select(Cart).where(
             Cart.id == cart_id,
-            Cart.user_id == user_id
+            Cart.user_id == user_id,
         )
     )
 
@@ -51,20 +60,24 @@ def get_cart_item(
 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cart item not found"
+            detail="Cart item not found",
         )
 
     return item
 
 
+# ============================================================
+# BUILD CART RESPONSE
+# ============================================================
+
 def build_cart_response(
     user_id: int,
-    db: Session
+    db: Session,
 ):
 
     items = db.scalars(
         select(Cart).where(
-            Cart.user_id == user_id
+            Cart.user_id == user_id,
         )
     ).all()
 
@@ -76,7 +89,7 @@ def build_cart_response(
 
         product = db.get(
             Product,
-            item.product_id
+            item.product_id,
         )
 
         if not product:
@@ -100,7 +113,7 @@ def build_cart_response(
                 product_name=product.name,
                 price=price,
                 quantity=item.quantity,
-                item_total=item_total
+                item_total=item_total,
             )
         )
 
@@ -122,44 +135,57 @@ def build_cart_response(
             Decimal("0.01")
         ),
         tax=tax,
-        grand_total=grand_total
+        grand_total=grand_total,
     )
 
+
+# ============================================================
+# ADD TO CART
+#
+# POST /cart/add
+# ============================================================
 
 @router.post(
     "/add",
     response_model=CartItemResponse,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 def add_to_cart(
     payload: CartCreate,
     current_user: CurrentUser,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
 
     product = db.get(
         Product,
-        payload.product_id
+        payload.product_id,
     )
 
     if not product:
 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
+            detail="Product not found",
+        )
+
+    if payload.quantity <= 0:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quantity must be greater than zero",
         )
 
     if payload.quantity > product.stock:
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Insufficient stock"
+            detail="Insufficient stock",
         )
 
     item = db.scalar(
         select(Cart).where(
             Cart.user_id == current_user.id,
-            Cart.product_id == payload.product_id
+            Cart.product_id == payload.product_id,
         )
     )
 
@@ -174,7 +200,7 @@ def add_to_cart(
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Insufficient stock"
+                detail="Insufficient stock",
             )
 
         item.quantity = new_quantity
@@ -184,14 +210,22 @@ def add_to_cart(
         item = Cart(
             user_id=current_user.id,
             product_id=payload.product_id,
-            quantity=payload.quantity
+            quantity=payload.quantity,
         )
 
         db.add(item)
 
+    # ========================================================
+    # SAVE DATABASE
+    # ========================================================
+
     db.commit()
 
     db.refresh(item)
+
+    # ========================================================
+    # BUILD RESPONSE
+    # ========================================================
 
     price = Decimal(
         str(product.price)
@@ -208,66 +242,93 @@ def add_to_cart(
         product_name=product.name,
         price=price,
         quantity=item.quantity,
-        item_total=item_total
+        item_total=item_total,
     )
 
 
+# ============================================================
+# GET CART
+#
+# GET /cart
+# ============================================================
+
 @router.get(
     "",
-    response_model=CartResponse
+    response_model=CartResponse,
 )
 def get_cart(
     current_user: CurrentUser,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
 
     return build_cart_response(
         current_user.id,
-        db
+        db,
     )
 
 
+# ============================================================
+# UPDATE CART
+#
+# PUT /cart/update
+# ============================================================
+
 @router.put(
     "/update",
-    response_model=CartItemResponse
+    response_model=CartItemResponse,
 )
 def update_cart(
     payload: CartUpdate,
     cart_id: int,
     current_user: CurrentUser,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
 
     item = get_cart_item(
         cart_id,
         current_user.id,
-        db
+        db,
     )
 
     product = db.get(
         Product,
-        item.product_id
+        item.product_id,
     )
 
     if not product:
 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
+            detail="Product not found",
+        )
+
+    if payload.quantity <= 0:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quantity must be greater than zero",
         )
 
     if payload.quantity > product.stock:
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Insufficient stock"
+            detail="Insufficient stock",
         )
 
     item.quantity = payload.quantity
 
+    # ========================================================
+    # SAVE DATABASE
+    # ========================================================
+
     db.commit()
 
     db.refresh(item)
+
+    # ========================================================
+    # BUILD RESPONSE
+    # ========================================================
 
     price = Decimal(
         str(product.price)
@@ -284,24 +345,30 @@ def update_cart(
         product_name=product.name,
         price=price,
         quantity=item.quantity,
-        item_total=item_total
+        item_total=item_total,
     )
 
 
+# ============================================================
+# REMOVE FROM CART
+#
+# DELETE /cart/remove
+# ============================================================
+
 @router.delete(
     "/remove",
-    status_code=status.HTTP_204_NO_CONTENT
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 def remove_from_cart(
     cart_id: int,
     current_user: CurrentUser,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
 
     item = get_cart_item(
         cart_id,
         current_user.id,
-        db
+        db,
     )
 
     db.delete(item)

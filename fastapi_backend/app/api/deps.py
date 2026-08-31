@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import decode_local_token
 from app.db.session import get_db
+
 from app.models.user import User
 from app.models.user import UserRole
 
@@ -62,6 +63,17 @@ def get_current_user(
 
         if not user:
             raise credentials_exception
+
+        # ====================================================
+        # CHECK ACCOUNT STATUS
+        # ====================================================
+
+        if not user.is_active:
+
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive",
+            )
 
         return user
 

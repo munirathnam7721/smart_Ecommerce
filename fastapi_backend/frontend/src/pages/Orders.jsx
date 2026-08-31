@@ -13,43 +13,203 @@ function Orders() {
     loadOrders();
   }, []);
 
+  // ============================================================
+  // LOAD ORDERS
+  // GET /orders
+  // ============================================================
+
   async function loadOrders() {
     setLoading(true);
     setError("");
 
     try {
       const response = await apiFetch("/orders");
-      const data = await response.json();
+
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      console.log("ORDERS FROM BACKEND:", data);
 
       if (!response.ok) {
-        setError(
-          data.detail || "Failed to load orders"
-        );
+        const message =
+          typeof data?.detail === "string"
+            ? data.detail
+            : "Failed to load orders";
+
+        setError(message);
         return;
       }
 
-      setOrders(
-        Array.isArray(data) ? data : []
-      );
+      if (!Array.isArray(data)) {
+        setOrders([]);
+        return;
+      }
+
+      setOrders(data);
     } catch (err) {
-      console.error(err);
+      console.error("LOAD ORDERS ERROR:", err);
+
       setError("Cannot connect to backend");
     } finally {
       setLoading(false);
     }
   }
 
+  // ============================================================
+  // REQUEST RETURN
+  // POST /orders/{order_id}/return
+  // ============================================================
+
+  async function handleReturnRequest(orderId) {
+    const reason = window.prompt(
+      "Why do you want to return this order?"
+    );
+
+    if (!reason || !reason.trim()) {
+      return;
+    }
+
+    const comment = window.prompt(
+      "Additional comment (optional):"
+    );
+
+    const payload = {
+      reason: reason.trim(),
+      comment:
+        comment && comment.trim()
+          ? comment.trim()
+          : null,
+    };
+
+    console.log("RETURN REQUEST:", {
+      orderId,
+      payload,
+    });
+
+    try {
+      const response = await apiFetch(
+        `/orders/${orderId}/return`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify(payload),
+        }
+      );
+
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      console.log("RETURN RESPONSE:", {
+        status: response.status,
+        data,
+      });
+
+      // ========================================================
+      // ERROR
+      // ========================================================
+
+      if (!response.ok) {
+        let message = "Unable to submit return request";
+
+        if (typeof data?.detail === "string") {
+          message = data.detail;
+        } else if (data?.detail?.message) {
+          message = data.detail.message;
+        }
+
+        alert(message);
+
+        return;
+      }
+
+      // ========================================================
+      // SUCCESS
+      // ========================================================
+
+      alert(
+        "Return request submitted successfully!"
+      );
+
+      // Reload orders.
+      // delivered -> return_requested
+      await loadOrders();
+    } catch (err) {
+      console.error(
+        "RETURN REQUEST ERROR:",
+        err
+      );
+
+      alert(
+        "Cannot connect to backend"
+      );
+    }
+  }
+
+  // ============================================================
+  // FORMAT DATE
+  // ============================================================
+
   function formatDate(date) {
     if (!date) {
       return "Unknown";
     }
 
-    return new Date(date).toLocaleString();
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "Unknown";
+    }
+
+    return parsedDate.toLocaleString();
   }
 
+  // ============================================================
+  // FORMAT AMOUNT
+  // ============================================================
+
   function formatAmount(amount) {
-    return Number(amount || 0).toFixed(2);
+    const value = Number(amount);
+
+    if (Number.isNaN(value)) {
+      return "0.00";
+    }
+
+    return value.toFixed(2);
   }
+
+  // ============================================================
+  // DISPLAY STATUS
+  // ============================================================
+
+  function formatStatus(status) {
+    if (!status) {
+      return "Unknown";
+    }
+
+    return status
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (letter) =>
+        letter.toUpperCase()
+      );
+  }
+
+  // ============================================================
+  // STATUS CLASS
+  // ============================================================
 
   function getStatusClass(status) {
     if (
@@ -61,23 +221,36 @@ function Orders() {
 
     if (
       status === "failed" ||
-      status === "cancelled"
+      status === "cancelled" ||
+      status === "rejected"
     ) {
       return "status-error";
+    }
+
+    if (
+      status === "return_requested"
+    ) {
+      return "status-pending";
     }
 
     return "status-pending";
   }
 
+  // ============================================================
+  // PAGE
+  // ============================================================
+
   return (
     <div className="page">
-
       <Navbar />
 
       <main className="container">
 
-        <section className="hero">
+        {/* ================================================== */}
+        {/* HERO */}
+        {/* ================================================== */}
 
+        <section className="hero">
           <h1>
             My Orders
           </h1>
@@ -85,14 +258,21 @@ function Orders() {
           <p>
             View your order history and payment status.
           </p>
-
         </section>
+
+        {/* ================================================== */}
+        {/* ERROR */}
+        {/* ================================================== */}
 
         {error && (
           <div className="message error">
             {error}
           </div>
         )}
+
+        {/* ================================================== */}
+        {/* LOADING */}
+        {/* ================================================== */}
 
         {loading ? (
 
@@ -102,8 +282,11 @@ function Orders() {
 
         ) : orders.length === 0 ? (
 
-          <div className="empty">
+          /* ================================================== */
+          /* EMPTY */
+          /* ================================================== */
 
+          <div className="empty">
             <h2>
               No orders found
             </h2>
@@ -118,31 +301,69 @@ function Orders() {
             >
               Start Shopping
             </Link>
-
           </div>
 
         ) : (
 
-          <div className="orders-list">
+          /* ================================================== */
+          /* ORDERS */
+          /* ================================================== */
+
+          <div
+            className="orders-list"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "25px",
+            }}
+          >
 
             {orders.map((order) => (
 
               <article
-                className="order-card"
                 key={order.id}
+                className="order-card"
+                style={{
+                  background: "#ffffff",
+                  borderRadius: "12px",
+                  padding: "28px",
+                  marginBottom: "0",
+                  boxShadow:
+                    "0 4px 14px rgba(0, 0, 0, 0.08)",
+                }}
               >
 
-                {/* Order Header */}
+                {/* ================================================== */}
+                {/* ORDER HEADER */}
+                {/* ================================================== */}
 
-                <div className="order-header">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    paddingBottom: "20px",
+                    borderBottom:
+                      "1px solid #e5e7eb",
+                  }}
+                >
 
                   <div>
 
-                    <h2>
+                    <h2
+                      style={{
+                        margin: "0 0 8px",
+                      }}
+                    >
                       Order #{order.id}
                     </h2>
 
-                    <p>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#666",
+                      }}
+                    >
                       {formatDate(
                         order.created_at
                       )}
@@ -150,21 +371,35 @@ function Orders() {
 
                   </div>
 
-                  <div className="order-total">
-
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: "700",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     ₹
                     {formatAmount(
                       order.total
                     )}
-
                   </div>
 
                 </div>
 
+                {/* ================================================== */}
+                {/* STATUS */}
+                {/* ================================================== */}
 
-                {/* Order Status */}
-
-                <div className="order-status">
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "30px",
+                    padding: "18px 0",
+                    borderBottom:
+                      "1px solid #e5e7eb",
+                    flexWrap: "wrap",
+                  }}
+                >
 
                   <span>
                     Payment:{" "}
@@ -174,7 +409,9 @@ function Orders() {
                         order.payment_status
                       )}
                     >
-                      {order.payment_status}
+                      {formatStatus(
+                        order.payment_status
+                      )}
                     </strong>
                   </span>
 
@@ -186,18 +423,29 @@ function Orders() {
                         order.order_status
                       )}
                     >
-                      {order.order_status}
+                      {formatStatus(
+                        order.order_status
+                      )}
                     </strong>
                   </span>
 
                 </div>
 
+                {/* ================================================== */}
+                {/* ITEMS */}
+                {/* ================================================== */}
 
-                {/* Order Items */}
+                <div
+                  style={{
+                    paddingTop: "20px",
+                  }}
+                >
 
-                <div className="order-items">
-
-                  <h3>
+                  <h3
+                    style={{
+                      margin: "0 0 15px",
+                    }}
+                  >
                     Items
                   </h3>
 
@@ -205,9 +453,24 @@ function Orders() {
                     (item) => (
 
                       <div
-                        className="order-item"
                         key={item.id}
+                        style={{
+                          display: "flex",
+                          justifyContent:
+                            "space-between",
+                          alignItems: "center",
+                          padding: "16px",
+                          marginBottom: "12px",
+                          background:
+                            "#f8fafc",
+                          border:
+                            "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                          gap: "20px",
+                        }}
                       >
+
+                        {/* PRODUCT */}
 
                         <div>
 
@@ -215,21 +478,41 @@ function Orders() {
                             Product #{item.product_id}
                           </strong>
 
-                          <p>
+                          <p
+                            style={{
+                              margin:
+                                "6px 0 0",
+                              color: "#666",
+                            }}
+                          >
                             Quantity:{" "}
                             {item.quantity}
                           </p>
 
                         </div>
 
-                        <div>
+                        {/* PRICE */}
 
-                          <p>
+                        <div
+                          style={{
+                            textAlign: "right",
+                          }}
+                        >
+
+                          <p
+                            style={{
+                              margin:
+                                "0 0 5px",
+                              color: "#666",
+                            }}
+                          >
                             ₹
                             {formatAmount(
                               item.price
-                            )}{" "}
-                            ×{" "}
+                            )}
+
+                            {" × "}
+
                             {item.quantity}
                           </p>
 
@@ -249,14 +532,104 @@ function Orders() {
 
                 </div>
 
+                {/* ================================================== */}
+                {/* ACTION BUTTONS */}
+                {/* ================================================== */}
 
-                {/* View Details */}
+                <div
+                  style={{
+                    marginTop: "25px",
+                    paddingTop: "20px",
+                    borderTop:
+                      "1px solid #e5e7eb",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
 
-                <div className="order-actions">
+                  {/* ================================================== */}
+                  {/* RETURN BUTTON */}
+                  {/* Only delivered orders */}
+                  {/* ================================================== */}
+
+                  {order.order_status ===
+                    "delivered" && (
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleReturnRequest(
+                          order.id
+                        )
+                      }
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "12px 22px",
+                        minWidth: "170px",
+                        background: "#dc2626",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "8px",
+                        fontWeight: "600",
+                        fontSize: "15px",
+                        cursor: "pointer",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      Request Return
+                    </button>
+                  )}
+
+                  {/* ================================================== */}
+                  {/* RETURN REQUESTED MESSAGE */}
+                  {/* ================================================== */}
+
+                  {order.order_status ===
+                    "return_requested" && (
+
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "12px 22px",
+                        minWidth: "190px",
+                        background: "#fef3c7",
+                        color: "#92400e",
+                        borderRadius: "8px",
+                        fontWeight: "600",
+                        fontSize: "15px",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      Return Requested
+                    </div>
+                  )}
+
+                  {/* ================================================== */}
+                  {/* VIEW ORDER DETAILS */}
+                  {/* ================================================== */}
 
                   <Link
                     to={`/orders/${order.id}`}
-                    className="primary-button"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "12px 22px",
+                      minWidth: "190px",
+                      background: "#2563eb",
+                      color: "#ffffff",
+                      textDecoration: "none",
+                      borderRadius: "8px",
+                      fontWeight: "600",
+                      fontSize: "15px",
+                      boxSizing: "border-box",
+                    }}
                   >
                     View Order Details
                   </Link>
@@ -264,15 +637,12 @@ function Orders() {
                 </div>
 
               </article>
-
             ))}
 
           </div>
-
         )}
 
       </main>
-
     </div>
   );
 }

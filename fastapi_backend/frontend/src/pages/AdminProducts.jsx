@@ -1,563 +1,210 @@
-import { useEffect, useState } from "react";
-import Navbar from "../components/Navbar";
-import { apiFetch, getCurrentUser } from "../api";
+import { useState } from "react";
 
-function AdminProducts() {
-  const user = getCurrentUser();
+import {
+  downloadReport,
+} from "../adminApi";
 
-  const [products, setProducts] = useState([]);
+import "./AdminReports.css";
 
-  const [loading, setLoading] = useState(true);
 
-  const [message, setMessage] = useState("");
+export default function AdminReports() {
 
-  const [error, setError] = useState("");
+  const [
+    downloading,
+    setDownloading,
+  ] = useState("");
 
-  const [editingId, setEditingId] = useState(null);
 
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    price: "",
-    stock: "",
-    popularity: "0",
-    category: "",
-    images: "",
-  });
+  async function handleDownload(
+    reportType,
+    format
+  ) {
 
-  useEffect(() => {
-    if (user?.role === "admin") {
-      loadProducts();
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  function handleChange(event) {
-    const { name, value } = event.target;
-
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  }
-
-  async function loadProducts() {
-    setLoading(true);
-    setError("");
+    const key = `${reportType}-${format}`;
 
     try {
-      const response = await apiFetch("/products");
 
-      const data = await response.json();
+      setDownloading(key);
 
-      if (!response.ok) {
-        setError(
-          data.detail || "Failed to load products"
-        );
-        return;
-      }
+      await downloadReport(
+        reportType,
+        format
+      );
 
-      setProducts(data);
-    } catch {
-      setError("Cannot connect to backend");
+    } catch (error) {
+
+      console.error(
+        "Report download failed:",
+        error
+      );
+
+      alert(
+        error.message ||
+        "Unable to download report"
+      );
+
     } finally {
-      setLoading(false);
+
+      setDownloading("");
     }
   }
 
-  function resetForm() {
-    setForm({
-      name: "",
-      description: "",
-      price: "",
-      stock: "",
-      popularity: "0",
-      category: "",
-      images: "",
-    });
 
-    setEditingId(null);
-  }
+  function DownloadButton({
+    reportType,
+    format,
+    label,
+  }) {
 
-  function editProduct(product) {
-    setEditingId(product.id);
+    const key =
+      `${reportType}-${format}`;
 
-    setForm({
-      name: product.name || "",
-      description: product.description || "",
-      price: product.price ?? "",
-      stock: product.stock ?? "",
-      popularity: product.popularity ?? "0",
-      category: product.category || "",
-      images: product.images || "",
-    });
+    const isDownloading =
+      downloading === key;
 
-    setMessage("");
-    setError("");
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
-
-  async function saveProduct(event) {
-    event.preventDefault();
-
-    setMessage("");
-    setError("");
-
-    const body = {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      price: Number(form.price),
-      stock: Number(form.stock),
-      popularity: Number(form.popularity),
-      category: form.category.trim(),
-      images: form.images.trim() || null,
-    };
-
-    try {
-      const endpoint = editingId
-        ? `/products/${editingId}`
-        : "/products";
-
-      const method = editingId ? "PUT" : "POST";
-
-      const response = await apiFetch(endpoint, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(
-          data.detail || "Failed to save product"
-        );
-        return;
-      }
-
-      setMessage(
-        editingId
-          ? "Product updated successfully."
-          : "Product created successfully."
-      );
-
-      resetForm();
-
-      await loadProducts();
-    } catch {
-      setError("Cannot connect to backend");
-    }
-  }
-
-  async function deleteProduct(productId) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this product?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setMessage("");
-    setError("");
-
-    try {
-      const response = await apiFetch(
-        `/products/${productId}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      /*
-       * DELETE endpoint returns 204 No Content.
-       * Therefore, DO NOT call response.json().
-       */
-      if (!response.ok) {
-        let data = {};
-
-        try {
-          data = await response.json();
-        } catch {
-          // No response body
-        }
-
-        setError(
-          data.detail ||
-            "Failed to delete product"
-        );
-
-        return;
-      }
-
-      setMessage(
-        "Product deleted successfully."
-      );
-
-      await loadProducts();
-    } catch {
-      setError("Cannot connect to backend");
-    }
-  }
-
-  if (user?.role !== "admin") {
     return (
-      <div className="page">
-        <Navbar />
+      <button
+        className="report-button"
+        onClick={() =>
+          handleDownload(
+            reportType,
+            format
+          )
+        }
+        disabled={downloading !== ""}
+      >
 
-        <main className="container">
-          <div className="empty">
-            <h2>Access denied</h2>
+        <span>
+          {format.toUpperCase()}
+        </span>
 
-            <p>
-              Administrator access is required.
-            </p>
-          </div>
-        </main>
-      </div>
+        <strong>
+          {isDownloading
+            ? "Downloading..."
+            : label}
+        </strong>
+
+      </button>
     );
   }
+
 
   return (
-    <div className="page">
-      <Navbar />
 
-      <main className="container">
-        <div className="hero">
-          <h1>Product Management</h1>
+    <div className="admin-reports">
 
-          <p>
-            Create, edit and delete products.
-          </p>
-        </div>
+      <div className="reports-header">
 
-        {message && (
-          <div className="message">
-            {message}
+        <h1>
+          Export Reports
+        </h1>
+
+        <p>
+          Download orders, sales and user
+          reports.
+        </p>
+
+      </div>
+
+
+      <div className="reports-grid">
+
+
+        {/* ORDERS */}
+
+        <div className="report-card">
+
+          <div className="report-icon">
+            🧾
           </div>
-        )}
 
-        {error && (
-          <div className="message error">
-            {error}
-          </div>
-        )}
-
-        <form
-          className="admin-form"
-          onSubmit={saveProduct}
-        >
           <h2>
-            {editingId
-              ? "Edit Product"
-              : "Add Product"}
+            Orders Report
           </h2>
 
-          <div className="form-group">
-            <label>
-              Product Name
-            </label>
+          <p>
+            Export all customer orders.
+          </p>
 
-            <input
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              placeholder="Enter product name"
-              required
+          <div className="report-buttons">
+
+            <DownloadButton
+              reportType="orders"
+              format="csv"
+              label="Orders CSV"
             />
-          </div>
 
-          <div className="form-group">
-            <label>
-              Description
-            </label>
-
-            <textarea
-              name="description"
-              value={form.description}
-              onChange={handleChange}
-              placeholder="Enter product description"
+            <DownloadButton
+              reportType="orders"
+              format="pdf"
+              label="Orders PDF"
             />
+
           </div>
 
-          <div className="form-group">
-            <label>
-              Price
-            </label>
+        </div>
 
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              name="price"
-              value={form.price}
-              onChange={handleChange}
-              placeholder="Enter price"
-              required
+
+        {/* SALES */}
+
+        <div className="report-card">
+
+          <div className="report-icon">
+            📈
+          </div>
+
+          <h2>
+            Sales Report
+          </h2>
+
+          <p>
+            Export successfully paid orders.
+          </p>
+
+          <div className="report-buttons">
+
+            <DownloadButton
+              reportType="sales"
+              format="csv"
+              label="Sales CSV"
             />
+
           </div>
 
-          <div className="form-group">
-            <label>
-              Stock
-            </label>
+        </div>
 
-            <input
-              type="number"
-              min="0"
-              name="stock"
-              value={form.stock}
-              onChange={handleChange}
-              placeholder="Enter stock quantity"
-              required
+
+        {/* USERS */}
+
+        <div className="report-card">
+
+          <div className="report-icon">
+            👥
+          </div>
+
+          <h2>
+            Users Report
+          </h2>
+
+          <p>
+            Export registered users and roles.
+          </p>
+
+          <div className="report-buttons">
+
+            <DownloadButton
+              reportType="users"
+              format="csv"
+              label="Users CSV"
             />
+
           </div>
 
-          <div className="form-group">
-            <label>
-              Popularity
-            </label>
+        </div>
 
-            <input
-              type="number"
-              min="0"
-              name="popularity"
-              value={form.popularity}
-              onChange={handleChange}
-              placeholder="Enter popularity"
-              required
-            />
-          </div>
+      </div>
 
-          <div className="form-group">
-            <label>
-              Category
-            </label>
-
-            <input
-              name="category"
-              value={form.category}
-              onChange={handleChange}
-              placeholder="Example: Electronics"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              Image URL
-            </label>
-
-            <input
-              type="url"
-              name="images"
-              value={form.images}
-              onChange={handleChange}
-              placeholder="https://example.com/product.jpg"
-            />
-          </div>
-
-          {form.images && (
-            <div className="form-group">
-              <label>
-                Image Preview
-              </label>
-
-              <img
-                src={form.images}
-                alt="Product preview"
-                style={{
-                  width: "180px",
-                  height: "180px",
-                  objectFit: "cover",
-                  borderRadius: "10px",
-                  border: "1px solid #ddd",
-                }}
-                onError={(event) => {
-                  event.currentTarget.style.display =
-                    "none";
-                }}
-              />
-            </div>
-          )}
-
-          <div className="admin-actions">
-            <button
-              className="primary-button"
-              type="submit"
-            >
-              {editingId
-                ? "Update Product"
-                : "Create Product"}
-            </button>
-
-            {editingId && (
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={resetForm}
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </form>
-
-        {loading ? (
-          <div className="loading">
-            Loading products...
-          </div>
-        ) : products.length === 0 ? (
-          <div className="empty">
-            <h3>
-              No products available
-            </h3>
-
-            <p>
-              Create your first product above.
-            </p>
-          </div>
-        ) : (
-          <div
-            style={{
-              overflowX: "auto",
-            }}
-          >
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>
-                    Image
-                  </th>
-
-                  <th>
-                    Name
-                  </th>
-
-                  <th>
-                    Price
-                  </th>
-
-                  <th>
-                    Stock
-                  </th>
-
-                  <th>
-                    Popularity
-                  </th>
-
-                  <th>
-                    Category
-                  </th>
-
-                  <th>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {products.map(
-                  (product) => (
-                    <tr
-                      key={product.id}
-                    >
-                      <td>
-                        {product.images ? (
-                          <img
-                            src={
-                              product.images
-                            }
-                            alt={
-                              product.name
-                            }
-                            style={{
-                              width: "60px",
-                              height: "60px",
-                              objectFit:
-                                "cover",
-                              borderRadius:
-                                "8px",
-                            }}
-                            onError={(
-                              event
-                            ) => {
-                              event.currentTarget.style.display =
-                                "none";
-                            }}
-                          />
-                        ) : (
-                          <span>
-                            No Image
-                          </span>
-                        )}
-                      </td>
-
-                      <td>
-                        {product.name}
-                      </td>
-
-                      <td>
-                        ₹{product.price}
-                      </td>
-
-                      <td>
-                        {product.stock}
-                      </td>
-
-                      <td>
-                        {product.popularity}
-                      </td>
-
-                      <td>
-                        {product.category ||
-                          "-"}
-                      </td>
-
-                      <td>
-                        <div className="admin-actions">
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={() =>
-                              editProduct(
-                                product
-                              )
-                            }
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            className="danger-button"
-                            onClick={() =>
-                              deleteProduct(
-                                product.id
-                              )
-                            }
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </main>
     </div>
   );
 }
-
-export default AdminProducts;

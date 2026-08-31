@@ -17,6 +17,7 @@
   }
 }
 
+
 .hero {
   position: relative;
 
@@ -181,4 +182,161 @@
     right: 0;
     border-right-color: var(--border);
   }
+}
+/* =========================
+   ORDERS
+========================= */
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.order-card {
+  background: white;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+
+/* =========================
+   ORDER HEADER
+========================= */
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.order-header h2 {
+  margin: 0 0 8px;
+}
+
+.order-header p {
+  margin: 0;
+  color: #666;
+}
+
+.order-total {
+  font-size: 22px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+
+/* =========================
+   ORDER STATUS
+========================= */
+
+.order-status {
+  display: flex;
+  gap: 30px;
+  padding: 18px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.order-status span {
+  font-size: 15px;
+}
+
+
+/* =========================
+   STATUS COLORS
+========================= */
+
+.status-success {
+  color: #15803d;
+}
+
+.status-error {
+  color: #dc2626;
+}
+
+.status-pending {
+  color: #d97706;
+}
+
+
+/* =========================
+   ORDER ITEMS
+========================= */
+
+.order-items {
+  padding-top: 20px;
+}
+
+.order-items h3 {
+  margin: 0 0 16px;
+}
+
+.order-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+
+  padding: 16px;
+  margin-bottom: 12px;
+
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.order-item-info strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.order-item-info p {
+  margin: 0;
+  color: #666;
+}
+
+.order-item-price {
+  text-align: right;
+}
+
+.order-item-price p {
+  margin: 0 0 5px;
+  color: #666;
+}
+
+.order-item-price strong {
+  font-size: 16px;
+}
+
+
+/* =========================
+   VIEW DETAILS
+========================= */
+
+.order-actions {
+  display: flex;
+  justify-content: flex-end;
+
+  margin-top: 24px;
+  padding-top: 20px;
+
+  border-top: 1px solid #e5e7eb;
+}
+
+.order-details-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 180px;
+  padding: 12px 20px;
+
+  text-decoration: none;
+  text-align: center;
+
+  border-radius: 8px;
 }

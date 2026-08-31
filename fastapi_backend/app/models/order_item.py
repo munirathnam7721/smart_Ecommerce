@@ -9,42 +9,46 @@ from sqlalchemy.orm import mapped_column
 from app.db.session import Base
 
 
+# ============================================================
+# ORDER ITEM
+# ============================================================
+
 class OrderItem(Base):
 
     __tablename__ = "order_items"
 
     id: Mapped[int] = mapped_column(
-        primary_key=True
+        primary_key=True,
     )
 
     order_id: Mapped[int] = mapped_column(
         ForeignKey(
             "orders.id",
-            ondelete="CASCADE"
+            ondelete="CASCADE",
         ),
         nullable=False,
-        index=True
+        index=True,
     )
 
     product_id: Mapped[int] = mapped_column(
         ForeignKey(
             "products.id",
-            ondelete="RESTRICT"
+            ondelete="RESTRICT",
         ),
         nullable=False,
-        index=True
+        index=True,
     )
 
     quantity: Mapped[int] = mapped_column(
-        nullable=False
+        nullable=False,
     )
 
     price: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
-        nullable=False
+        nullable=False,
     )
 
     item_total: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
-        nullable=False
+        nullable=False,
     )

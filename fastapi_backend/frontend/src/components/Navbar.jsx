@@ -13,6 +13,7 @@ function Navbar() {
   return (
     <header className="navbar">
       <div className="navbar-inner">
+
         <Link
           to="/products"
           className="brand"
@@ -21,6 +22,7 @@ function Navbar() {
         </Link>
 
         <nav className="nav-links">
+
           <Link to="/products">
             Products
           </Link>
@@ -33,15 +35,39 @@ function Navbar() {
             Orders
           </Link>
 
+          <Link to="/notifications">
+            Notifications
+          </Link>
+
           <Link to="/profile">
             Profile
           </Link>
 
+
+          {/* ================================================= */}
+          {/* ADMIN LINKS */}
+          {/* ================================================= */}
+
           {user?.role === "admin" && (
-            <Link to="/admin/products">
-              Admin
-            </Link>
+            <>
+              <Link to="/admin/dashboard">
+                Dashboard
+              </Link>
+
+              <Link to="/admin/products">
+                Admin Products
+              </Link>
+
+              <Link to="/admin/reports">
+                Reports
+              </Link>
+            </>
           )}
+
+
+          {/* ================================================= */}
+          {/* LOGOUT */}
+          {/* ================================================= */}
 
           <button
             className="nav-button"
@@ -49,6 +75,7 @@ function Navbar() {
           >
             Logout
           </button>
+
         </nav>
       </div>
     </header>

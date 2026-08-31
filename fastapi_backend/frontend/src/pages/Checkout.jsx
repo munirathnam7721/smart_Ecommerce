@@ -1,17 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { apiFetch } from "../api";
 import Navbar from "../components/Navbar";
 
 function Checkout() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [checkoutData, setCheckoutData] = useState(null);
-
-  useEffect(() => {
-    startCheckout();
-  }, []);
 
   async function startCheckout() {
+    // Prevent multiple clicks
+    if (loading) {
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -26,45 +26,48 @@ function Checkout() {
         setError(
           data.detail || "Failed to start checkout"
         );
+
+        setLoading(false);
         return;
       }
 
-      setCheckoutData(data);
-
-      // Redirect to Stripe checkout page
+      // Redirect to Stripe
       if (data.checkout_url) {
         window.location.href = data.checkout_url;
-      } else {
-        setError("Checkout URL was not returned");
+        return;
       }
+
+      setError(
+        "Checkout URL was not returned"
+      );
 
     } catch (error) {
       console.error(error);
-      setError("Cannot connect to backend");
-    } finally {
+
+      setError(
+        "Cannot connect to backend"
+      );
+
       setLoading(false);
     }
   }
 
   return (
     <div className="page">
+
       <Navbar />
 
       <main className="container">
 
         <section className="hero">
+
           <h1>Checkout</h1>
 
           <p>
-            Preparing your checkout...
+            Review your cart and continue to payment.
           </p>
-        </section>
 
-        {loading && (
-          <div className="loading">
-            Creating checkout session...
-          </div>
-        )}
+        </section>
 
         {error && (
           <div className="message error">
@@ -72,13 +75,22 @@ function Checkout() {
           </div>
         )}
 
-        {checkoutData && !error && (
-          <div className="message">
-            Checkout session created successfully.
-          </div>
-        )}
+        <div className="checkout-card">
+
+          <button
+            className="primary-button"
+            onClick={startCheckout}
+            disabled={loading}
+          >
+            {loading
+              ? "Creating checkout..."
+              : "Proceed to Payment"}
+          </button>
+
+        </div>
 
       </main>
+
     </div>
   );
 }

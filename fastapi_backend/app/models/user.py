@@ -14,9 +14,7 @@ from app.db.session import Base
 class UserRole(str, Enum):
 
     admin = "admin"
-
     staff = "staff"
-
     customer = "customer"
 
 
@@ -26,44 +24,53 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
-        index=True
+        index=True,
     )
 
     name: Mapped[str] = mapped_column(
         String(120),
-        nullable=False
+        nullable=False,
     )
 
     email: Mapped[str] = mapped_column(
         String(255),
         unique=True,
         index=True,
-        nullable=False
+        nullable=False,
     )
 
     password_hash: Mapped[str | None] = mapped_column(
         String(512),
-        nullable=True
+        nullable=True,
     )
 
     role: Mapped[UserRole] = mapped_column(
         SAEnum(
             UserRole,
-            native_enum=False
+            native_enum=False,
         ),
         default=UserRole.customer,
-        nullable=False
+        nullable=False,
+    )
+
+    # ========================================================
+    # ACTIVE / INACTIVE
+    # ========================================================
+
+    is_active: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
     )
 
     auth0_sub: Mapped[str | None] = mapped_column(
         String(255),
         unique=True,
         index=True,
-        nullable=True
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
-        nullable=False
+        nullable=False,
     )
