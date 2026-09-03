@@ -26,6 +26,8 @@ from app.models.payment import Payment
 
 from app.models.product import Product
 
+from app.models.stripe_event import StripeEvent
+
 from app.models.user import User
 
 from app.services.notification_service import (
@@ -55,7 +57,7 @@ router = APIRouter(
 
 
 # ============================================================
-# WEBHOOK
+# STRIPE WEBHOOK
 # ============================================================
 
 @router.post(
@@ -84,7 +86,7 @@ async def stripe_webhook(
     )
 
     # ========================================================
-    # 2. STRIPE SIGNATURE
+    # 2. GET STRIPE SIGNATURE
     # ========================================================
 
     stripe_signature = request.headers.get(
@@ -93,20 +95,27 @@ async def stripe_webhook(
 
     if not stripe_signature:
 
+        print(
+            "ERROR: Stripe signature missing"
+        )
+
         raise HTTPException(
             status_code=400,
             detail="Missing Stripe signature",
         )
 
     # ========================================================
-    # 3. VERIFY WEBHOOK
+    # 3. VERIFY STRIPE EVENT
     # ========================================================
 
     try:
 
         event = stripe.Webhook.construct_event(
+
             payload,
+
             stripe_signature,
+
             settings.stripe_webhook_secret,
         )
 
@@ -138,6 +147,7 @@ async def stripe_webhook(
 
         print(
             "WEBHOOK VERIFICATION ERROR:",
+            type(exc).__name__,
             str(exc),
         )
 
@@ -150,8 +160,8 @@ async def stripe_webhook(
     # 4. EVENT INFORMATION
     # ========================================================
 
-    event_type = event.type
     event_id = event.id
+    event_type = event.type
 
     print("=" * 70)
     print("STRIPE WEBHOOK VERIFIED")
@@ -160,15 +170,63 @@ async def stripe_webhook(
     print("=" * 70)
 
     # ========================================================
-    # 5. ONLY PROCESS CHECKOUT COMPLETED
+    # 5. IDEMPOTENCY CHECK
+    #
+    # Stripe can send the same webhook more than once.
     # ========================================================
 
-    if event_type != "checkout.session.completed":
+    existing_event = db.scalar(
+
+        select(StripeEvent).where(
+            StripeEvent.event_id == event_id
+        )
+    )
+
+    if existing_event:
+
+        print("=" * 70)
+        print("WEBHOOK ALREADY PROCESSED")
+        print("Event ID:", event_id)
+        print("=" * 70)
+
+        return {
+            "status": "already_processed",
+            "event_id": event_id,
+        }
+
+    # ========================================================
+    # 6. ONLY PROCESS SUPPORTED EVENTS
+    # ========================================================
+
+    supported_events = {
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+        "checkout.session.async_payment_failed",
+    }
+
+    if event_type not in supported_events:
 
         print(
-            "Ignoring event:",
+            "Ignoring unsupported event:",
             event_type,
         )
+
+        # Store event so it won't be processed repeatedly.
+
+        try:
+
+            db.add(
+                StripeEvent(
+                    event_id=event_id,
+                    event_type=event_type,
+                )
+            )
+
+            db.commit()
+
+        except Exception:
+
+            db.rollback()
 
         return {
             "status": "ignored",
@@ -176,7 +234,7 @@ async def stripe_webhook(
         }
 
     # ========================================================
-    # 6. GET SESSION
+    # 7. GET STRIPE SESSION
     # ========================================================
 
     session = event.data.object
@@ -186,6 +244,12 @@ async def stripe_webhook(
     stripe_payment_status = getattr(
         session,
         "payment_status",
+        None,
+    )
+
+    stripe_payment_intent = getattr(
+        session,
+        "payment_intent",
         None,
     )
 
@@ -199,8 +263,13 @@ async def stripe_webhook(
         stripe_payment_status,
     )
 
+    print(
+        "Stripe Payment Intent:",
+        stripe_payment_intent,
+    )
+
     # ========================================================
-    # 7. GET METADATA
+    # 8. GET METADATA
     # ========================================================
 
     raw_metadata = getattr(
@@ -237,7 +306,7 @@ async def stripe_webhook(
     )
 
     # ========================================================
-    # 8. GET ORDER ID
+    # 9. GET ORDER ID
     # ========================================================
 
     order_id = metadata.get(
@@ -252,12 +321,11 @@ async def stripe_webhook(
             None,
         )
 
-    print(
-        "Order ID:",
-        order_id,
-    )
-
     if not order_id:
+
+        print(
+            "Order ID missing"
+        )
 
         return {
             "status": "ignored",
@@ -265,7 +333,7 @@ async def stripe_webhook(
         }
 
     # ========================================================
-    # 9. CONVERT ORDER ID
+    # 10. CONVERT ORDER ID
     # ========================================================
 
     try:
@@ -283,7 +351,7 @@ async def stripe_webhook(
         }
 
     # ========================================================
-    # 10. FIND ORDER
+    # 11. FIND ORDER
     # ========================================================
 
     order = db.get(
@@ -308,10 +376,11 @@ async def stripe_webhook(
     )
 
     # ========================================================
-    # 11. FIND PAYMENT
+    # 12. FIND PAYMENT
     # ========================================================
 
     payment = db.scalar(
+
         select(Payment).where(
             Payment.order_id == order.id
         )
@@ -334,7 +403,68 @@ async def stripe_webhook(
     )
 
     # ========================================================
-    # 12. PAYMENT MUST BE PAID
+    # 13. SAVE STRIPE IDs
+    # ========================================================
+
+    payment.stripe_session_id = session_id
+
+    if stripe_payment_intent:
+
+        payment.stripe_payment_intent_id = (
+            stripe_payment_intent
+        )
+
+    # ========================================================
+    # 14. ASYNC PAYMENT FAILED
+    # ========================================================
+
+    if event_type == (
+        "checkout.session.async_payment_failed"
+    ):
+
+        payment.status = PaymentStatus.failed
+
+        order.payment_status = (
+            PaymentStatus.failed
+        )
+
+        order.order_status = (
+            OrderStatus.cancelled
+        )
+
+        try:
+
+            db.add(
+                StripeEvent(
+                    event_id=event_id,
+                    event_type=event_type,
+                )
+            )
+
+            db.commit()
+
+        except Exception as exc:
+
+            db.rollback()
+
+            print(
+                "Failed payment webhook error:",
+                str(exc),
+            )
+
+            raise HTTPException(
+                status_code=500,
+                detail="Webhook processing failed",
+            ) from exc
+
+        return {
+            "status": "payment_failed",
+            "event_id": event_id,
+            "order_id": order.id,
+        }
+
+    # ========================================================
+    # 15. PAYMENT MUST BE PAID
     # ========================================================
 
     if stripe_payment_status != "paid":
@@ -351,21 +481,31 @@ async def stripe_webhook(
         }
 
     # ========================================================
-    # 13. UPDATE TRANSACTION ID
+    # 16. PREVENT REFUNDED / RETURNED ORDER FROM
+    #     BEING MARKED PAID AGAIN
     # ========================================================
 
-    if payment.transaction_id != session_id:
+    if (
+        order.payment_status
+        == PaymentStatus.refunded
+        or
+        order.order_status
+        == OrderStatus.returned
+    ):
 
-        payment.transaction_id = session_id
+        print(
+            "Order already refunded/returned."
+        )
+
+        return {
+            "status": "ignored",
+            "reason":
+                "Order already refunded or returned",
+            "order_id": order.id,
+        }
 
     # ========================================================
-    # 14. CHECK WHETHER ORDER ALREADY PROCESSED
-    #
-    # This is different from the old code.
-    #
-    # We DON'T immediately return here.
-    #
-    # We still check whether the email was sent.
+    # 17. CHECK ALREADY PAID
     # ========================================================
 
     already_paid = (
@@ -373,26 +513,18 @@ async def stripe_webhook(
         == PaymentStatus.paid
     )
 
-    if already_paid:
-
-        print(
-            f"Order #{order.id} is already PAID."
-        )
-
     # ========================================================
-    # 15. PROCESS ORDER ONLY IF NOT ALREADY PAID
+    # 18. PROCESS PAYMENT
     # ========================================================
 
     if not already_paid:
-
-        user = None
 
         try:
 
             print("=" * 70)
             print(
-                f"PROCESSING PAYMENT "
-                f"FOR ORDER #{order.id}"
+                f"PROCESSING PAYMENT FOR ORDER "
+                f"#{order.id}"
             )
             print("=" * 70)
 
@@ -421,8 +553,10 @@ async def stripe_webhook(
             # ------------------------------------------------
 
             order_items = db.scalars(
+
                 select(OrderItem).where(
-                    OrderItem.order_id == order.id
+                    OrderItem.order_id
+                    == order.id
                 )
             ).all()
 
@@ -444,12 +578,11 @@ async def stripe_webhook(
 
                 if not product:
 
-                    print(
-                        "WARNING: Product not found:",
-                        order_item.product_id,
+                    raise ValueError(
+                        f"Product "
+                        f"{order_item.product_id} "
+                        "not found"
                     )
-
-                    continue
 
                 print(
                     "Product:",
@@ -476,18 +609,19 @@ async def stripe_webhook(
                         f"{product.name}"
                     )
 
-                product.stock = (
-                    product.stock
-                    - order_item.quantity
+                product.stock -= (
+                    order_item.quantity
                 )
 
             # ------------------------------------------------
-            # REMOVE CART
+            # CLEAR CART
             # ------------------------------------------------
 
             cart_items = db.scalars(
+
                 select(Cart).where(
-                    Cart.user_id == order.user_id
+                    Cart.user_id
+                    == order.user_id
                 )
             ).all()
 
@@ -502,22 +636,32 @@ async def stripe_webhook(
             # ------------------------------------------------
 
             create_notification(
+
                 db=db,
+
                 user_id=order.user_id,
-                notification_type="payment_success",
+
+                notification_type=(
+                    "payment_success"
+                ),
+
                 message=(
                     f"Payment for order "
-                    f"#{order.id} was successful."
+                    f"#{order.id} "
+                    "was successful."
                 ),
             )
 
             # ------------------------------------------------
-            # GET USER
+            # RECORD EVENT
             # ------------------------------------------------
 
-            user = db.get(
-                User,
-                order.user_id,
+            db.add(
+
+                StripeEvent(
+                    event_id=event_id,
+                    event_type=event_type,
+                )
             )
 
             # ------------------------------------------------
@@ -526,16 +670,20 @@ async def stripe_webhook(
 
             db.commit()
 
+            print("=" * 70)
             print(
                 f"ORDER #{order.id} MARKED PAID"
             )
+            print("=" * 70)
 
         except Exception as exc:
 
             db.rollback()
 
             print("=" * 70)
-            print("WEBHOOK PROCESSING ERROR")
+            print(
+                "WEBHOOK PROCESSING ERROR"
+            )
             print(
                 "ERROR TYPE:",
                 type(exc).__name__,
@@ -551,10 +699,34 @@ async def stripe_webhook(
                 detail="Webhook processing failed",
             ) from exc
 
+    else:
+
+        print(
+            f"Order #{order.id} already paid."
+        )
+
+        # ----------------------------------------------------
+        # Record webhook event
+        # ----------------------------------------------------
+
+        try:
+
+            db.add(
+
+                StripeEvent(
+                    event_id=event_id,
+                    event_type=event_type,
+                )
+            )
+
+            db.commit()
+
+        except Exception:
+
+            db.rollback()
+
     # ========================================================
-    # 16. GET USER
-    #
-    # We do this even if order was already paid.
+    # 19. GET USER
     # ========================================================
 
     user = db.get(
@@ -569,21 +741,8 @@ async def stripe_webhook(
             user.email,
         )
 
-    else:
-
-        print(
-            "WARNING: User not found"
-        )
-
     # ========================================================
-    # 17. SEND EMAIL
-    #
-    # This is the important part.
-    #
-    # Even if verify_payment() marked the order paid,
-    # the webhook can still send the email.
-    #
-    # email_sent prevents duplicate emails.
+    # 20. SEND PAYMENT SUCCESS EMAIL
     # ========================================================
 
     if (
@@ -620,16 +779,18 @@ async def stripe_webhook(
                     f"Hello {customer_name},\n\n"
 
                     f"Your payment for order "
-                    f"#{order.id} was successful.\n\n"
+                    f"#{order.id} "
+                    "was successful.\n\n"
 
                     f"Order Amount: "
-                    f"{order.total}\n\n"
+                    f"₹{order.total}\n\n"
 
                     "Payment Status: Paid\n"
+
                     "Order Status: Paid\n\n"
 
-                    "Your order has been successfully "
-                    "confirmed.\n\n"
+                    "Your order has been "
+                    "successfully confirmed.\n\n"
 
                     "Thank you for shopping with "
                     "Smart E-Commerce!\n\n"
@@ -639,27 +800,22 @@ async def stripe_webhook(
                 ),
             )
 
-            # ------------------------------------------------
-            # ONLY MARK SENT AFTER SUCCESS
-            # ------------------------------------------------
-
             payment.email_sent = True
 
             db.commit()
 
-            print("=" * 70)
-            print("PAYMENT EMAIL SENT SUCCESSFULLY")
             print(
-                "email_sent = True"
+                "PAYMENT EMAIL SENT SUCCESSFULLY"
             )
-            print("=" * 70)
 
         except Exception as exc:
 
             db.rollback()
 
             print("=" * 70)
-            print("PAYMENT EMAIL FAILED")
+            print(
+                "PAYMENT EMAIL FAILED"
+            )
             print(
                 "ERROR TYPE:",
                 type(exc).__name__,
@@ -670,10 +826,8 @@ async def stripe_webhook(
             )
             print("=" * 70)
 
-            # Do NOT fail the Stripe payment.
-            #
-            # The payment is already successful.
-            # The email can be retried later.
+            # Do not fail Stripe webhook
+            # because email failed.
 
     elif payment.email_sent:
 
@@ -684,19 +838,25 @@ async def stripe_webhook(
     else:
 
         print(
-            "EMAIL NOT SENT: "
-            "User/email unavailable."
+            "EMAIL NOT SENT: User/email unavailable."
         )
 
     # ========================================================
-    # 18. FINAL RESPONSE
+    # 21. FINAL RESPONSE
     # ========================================================
 
     print("=" * 70)
     print("STRIPE WEBHOOK COMPLETE")
     print("Event ID:", event_id)
     print("Order ID:", order.id)
-    print("Payment Status: PAID")
+    print(
+        "Payment Status:",
+        order.payment_status.value,
+    )
+    print(
+        "Order Status:",
+        order.order_status.value,
+    )
     print(
         "Email Sent:",
         payment.email_sent,
@@ -713,7 +873,11 @@ async def stripe_webhook(
 
         "order_id": order.id,
 
-        "payment_status": "paid",
+        "payment_status":
+            order.payment_status.value,
+
+        "order_status":
+            order.order_status.value,
 
         "email_sent":
             payment.email_sent,

@@ -14,12 +14,21 @@ function Navbar() {
     <header className="navbar">
       <div className="navbar-inner">
 
+        {/* =====================================================
+            BRAND
+        ===================================================== */}
+
         <Link
           to="/products"
           className="brand"
         >
           Smart E-Commerce
         </Link>
+
+
+        {/* =====================================================
+            NAVIGATION
+        ===================================================== */}
 
         <nav className="nav-links">
 
@@ -44,12 +53,13 @@ function Navbar() {
           </Link>
 
 
-          {/* ================================================= */}
-          {/* ADMIN LINKS */}
-          {/* ================================================= */}
+          {/* =================================================
+              ADMIN LINKS
+          ================================================= */}
 
           {user?.role === "admin" && (
             <>
+
               <Link to="/admin/dashboard">
                 Dashboard
               </Link>
@@ -58,18 +68,25 @@ function Navbar() {
                 Admin Products
               </Link>
 
+              {/* ADMIN ORDERS */}
+              <Link to="/admin/orders">
+                Admin Orders
+              </Link>
+
               <Link to="/admin/reports">
                 Reports
               </Link>
+
             </>
           )}
 
 
-          {/* ================================================= */}
-          {/* LOGOUT */}
-          {/* ================================================= */}
+          {/* =================================================
+              LOGOUT
+          ================================================= */}
 
           <button
+            type="button"
             className="nav-button"
             onClick={handleLogout}
           >
@@ -77,6 +94,7 @@ function Navbar() {
           </button>
 
         </nav>
+
       </div>
     </header>
   );

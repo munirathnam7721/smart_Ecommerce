@@ -83,21 +83,32 @@ def create_product(
     db: Session = Depends(get_db),
 ):
 
+    # Validate price
     if payload.price < 0:
         raise HTTPException(
             status_code=400,
             detail="Price cannot be negative",
         )
 
+    # Validate stock
     if payload.stock < 0:
         raise HTTPException(
             status_code=400,
             detail="Stock cannot be negative",
         )
 
+    # Validate category
+    if not payload.category or not payload.category.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Category is required",
+        )
+
+    # Create product
     product = Product(
         name=payload.name.strip(),
         description=payload.description,
+        category=payload.category.strip(),  # FIXED
         price=payload.price,
         stock=payload.stock,
     )
@@ -138,12 +149,26 @@ def update_product(
             detail="Product not found",
         )
 
+    # Update name
     if payload.name is not None:
         product.name = payload.name.strip()
 
+    # Update description
     if payload.description is not None:
         product.description = payload.description
 
+    # Update category
+    if payload.category is not None:
+
+        if not payload.category.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Category cannot be empty",
+            )
+
+        product.category = payload.category.strip()
+
+    # Update price
     if payload.price is not None:
 
         if payload.price < 0:
@@ -154,6 +179,7 @@ def update_product(
 
         product.price = payload.price
 
+    # Update stock
     if payload.stock is not None:
 
         if payload.stock < 0:
@@ -234,6 +260,7 @@ async def upload_product_image(
             detail="Product not found",
         )
 
+    # Validate image type
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
             status_code=400,
@@ -307,6 +334,7 @@ def update_stock(
     db: Session = Depends(get_db),
 ):
 
+    # Validate stock
     if stock < 0:
         raise HTTPException(
             status_code=400,

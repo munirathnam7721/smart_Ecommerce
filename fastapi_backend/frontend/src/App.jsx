@@ -1,4 +1,8 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+} from "react-router-dom";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -6,30 +10,53 @@ import Products from "./pages/Products";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import Profile from "./pages/Profile";
-import AdminProducts from "./pages/AdminProducts";
+
 import PaymentSuccess from "./pages/PaymentSuccess";
+
 import Orders from "./pages/Orders";
 import OrderDetails from "./pages/OrderDetails";
+
 import Notifications from "./pages/Notifications";
+
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminProducts from "./pages/AdminProducts";
+import AdminOrders from "./pages/AdminOrders";
 import AdminReports from "./pages/AdminReports";
 
 import ProtectedRoute from "./ProtectedRoute";
 
+
 function App() {
+
   return (
+
     <BrowserRouter>
+
       <Routes>
+
+        {/* =====================================================
+            LOGIN
+        ===================================================== */}
 
         <Route
           path="/"
           element={<Login />}
         />
 
+
+        {/* =====================================================
+            REGISTER
+        ===================================================== */}
+
         <Route
           path="/register"
           element={<Register />}
         />
+
+
+        {/* =====================================================
+            CUSTOMER PRODUCTS
+        ===================================================== */}
 
         <Route
           path="/products"
@@ -40,6 +67,11 @@ function App() {
           }
         />
 
+
+        {/* =====================================================
+            CUSTOMER CART
+        ===================================================== */}
+
         <Route
           path="/cart"
           element={
@@ -48,6 +80,11 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+
+        {/* =====================================================
+            CHECKOUT
+        ===================================================== */}
 
         <Route
           path="/checkout"
@@ -58,6 +95,11 @@ function App() {
           }
         />
 
+
+        {/* =====================================================
+            PAYMENT SUCCESS
+        ===================================================== */}
+
         <Route
           path="/payment/success"
           element={
@@ -66,6 +108,11 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+
+        {/* =====================================================
+            CUSTOMER ORDERS
+        ===================================================== */}
 
         <Route
           path="/orders"
@@ -76,6 +123,11 @@ function App() {
           }
         />
 
+
+        {/* =====================================================
+            CUSTOMER ORDER DETAILS
+        ===================================================== */}
+
         <Route
           path="/orders/:order_id"
           element={
@@ -85,7 +137,11 @@ function App() {
           }
         />
 
-        {/* Notifications */}
+
+        {/* =====================================================
+            CUSTOMER NOTIFICATIONS
+        ===================================================== */}
+
         <Route
           path="/notifications"
           element={
@@ -94,6 +150,11 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+
+        {/* =====================================================
+            CUSTOMER PROFILE
+        ===================================================== */}
 
         <Route
           path="/profile"
@@ -104,27 +165,67 @@ function App() {
           }
         />
 
-        <Route
-  path="/admin/dashboard"
-  element={
-    <ProtectedRoute>
-      <AdminDashboard />
-    </ProtectedRoute>
-  }
-/>
 
-<Route
-  path="/admin/reports"
-  element={
-    <ProtectedRoute>
-      <AdminReports />
-    </ProtectedRoute>
-  }
-/>
+        {/* =====================================================
+            ADMIN DASHBOARD
+        ===================================================== */}
+
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+
+        {/* =====================================================
+            ADMIN PRODUCTS
+        ===================================================== */}
+
+        <Route
+          path="/admin/products"
+          element={
+            <ProtectedRoute>
+              <AdminProducts />
+            </ProtectedRoute>
+          }
+        />
+
+
+        {/* =====================================================
+            ADMIN ORDERS
+        ===================================================== */}
+
+        <Route
+          path="/admin/orders"
+          element={
+            <ProtectedRoute>
+              <AdminOrders />
+            </ProtectedRoute>
+          }
+        />
+
+
+        {/* =====================================================
+            ADMIN REPORTS
+        ===================================================== */}
+
+        <Route
+          path="/admin/reports"
+          element={
+            <ProtectedRoute>
+              <AdminReports />
+            </ProtectedRoute>
+          }
+        />
 
       </Routes>
+
     </BrowserRouter>
   );
 }
+
 
 export default App;
